@@ -44,6 +44,10 @@ class Settings(BaseSettings):
         return self.output_dir / "digests"
 
     @property
+    def podcasts_path(self) -> Path:
+        return self.output_dir / "podcasts"
+
+    @property
     def logs_path(self) -> Path:
         return self.output_dir / "logs"
 
