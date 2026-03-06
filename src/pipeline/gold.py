@@ -64,10 +64,10 @@ def silver_to_gold(
     )
 
     # Quota-based selection:
-    #   - Top 5 Databricks (by relevance_score, is_databricks_related=True)
-    #   - Top 10 general AI hot news (by overall_score, excluding already selected)
-    #   - Top 5 other (remainder by overall_score)
-    quota = _select_digest_urls(gold_df, top_databricks=5, top_ai=10, top_other=5)
+    #   - Top 10 Databricks (by relevance_score, is_databricks_related=True)
+    #   - Top 20 general AI hot news (by overall_score, excluding already selected)
+    #   - Top 10 other (remainder by overall_score)
+    quota = _select_digest_urls(gold_df, top_databricks=10, top_ai=20, top_other=10)
     from pyspark.sql.functions import when
     gold_df = gold_df.withColumn(
         "digest_included",
@@ -95,9 +95,9 @@ def silver_to_gold(
 
 def _select_digest_urls(
     gold_df,
-    top_databricks: int = 5,
-    top_ai: int = 10,
-    top_other: int = 5,
+    top_databricks: int = 10,
+    top_ai: int = 20,
+    top_other: int = 10,
 ) -> list[str]:
     """Return URLs selected by quota: Databricks / hot AI / other."""
     selected: list[str] = []
