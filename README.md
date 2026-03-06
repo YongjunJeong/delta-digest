@@ -396,5 +396,4 @@ delta-digest/
 - [x] Phase 1: 수집 레이어 (RSS / HN / ArXiv / GitHub)
 - [x] Phase 2: Delta Lake Medallion Pipeline (Bronze → Silver → Gold)
 - [x] Phase 3: LLM 하이브리드 + 한국어 다이제스트 생성
-- [ ] Phase 4: TTS 팟캐스트 (edge-tts + ffmpeg)
-- [ ] Phase 5: RAG Q&A (ChromaDB + FastAPI)
+- [⏸] Phase 4: 대화형 TTS 팟캐스트 (구현 완료, 음성 품질 개선 후 운영 예정)
