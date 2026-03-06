@@ -86,5 +86,7 @@ class PodcastProducer:
 
     async def _tts_to_file(self, speaker: str, text: str, output_path: Path) -> None:
         voice = VOICE_MAP.get(speaker, VOICE_A)
-        communicate = edge_tts.Communicate(text, voice)
+        # Wrap in <speak> if text contains SSML tags
+        tts_text = f"<speak>{text}</speak>" if "<" in text and ">" in text else text
+        communicate = edge_tts.Communicate(tts_text, voice)
         await communicate.save(str(output_path))

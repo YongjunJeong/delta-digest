@@ -21,6 +21,7 @@ logger = get_logger("run_daily")
 async def run_pipeline(
     ingestion_date: date | None = None,
     use_mock_scores: bool = False,
+    skip_podcast: bool = False,
 ) -> None:
     if ingestion_date is None:
         ingestion_date = date.today()
@@ -81,6 +82,27 @@ async def run_pipeline(
     stop_spark()
 
     output_path = write_digest(digest_articles, total_collected, ingestion_date)
+
+    # ── Step 7: Podcast ──────────────────────────────────────────────────────
+    logger.info("step7_podcast")
+    if use_mock_scores or skip_podcast:
+        logger.info("podcast_skipped", reason="mock_mode_or_skip_flag")
+    else:
+        from src.agents.scriptwriter import ScriptWriter
+        from src.output.podcast_producer import PodcastProducer
+        from src.agents.router import LLMRouter
+
+        router_for_podcast = LLMRouter()
+        gemini = router_for_podcast.get_client("scriptwriting")
+        writer = ScriptWriter(gemini)
+        script = await writer.generate(digest_articles, ingestion_date)
+
+        if script.turns:
+            producer = PodcastProducer()
+            podcast_path = await producer.produce(script, ingestion_date)
+            print(f"\n🎙️  Podcast saved: {podcast_path}  ({script.estimated_minutes} min)")
+        else:
+            logger.warning("podcast_empty_script")
 
     logger.info(
         "pipeline_complete",
@@ -153,4 +175,5 @@ def _mock_scores(articles: list[dict]) -> tuple[list[dict], dict]:
 
 if __name__ == "__main__":
     mock = "--mock" in sys.argv
-    asyncio.run(run_pipeline(use_mock_scores=mock))
+    no_podcast = "--no-podcast" in sys.argv
+    asyncio.run(run_pipeline(use_mock_scores=mock, skip_podcast=no_podcast))

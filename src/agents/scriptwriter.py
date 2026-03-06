@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -21,10 +22,18 @@ _CHARACTER_BRIEF = f"""진행자 설명:
 - {HOST_B}: ML 연구 배경. 트렌드에 민감하고 직관적으로 반응한다. \
 "오 이거 진짜요?", "그게 왜 중요해요?" 같은 반응. 둘은 오래된 동료로 편안하게 대화한다."""
 
+_SSML_GUIDE = """대사 text 필드에 SSML 태그로 감정/리듬을 표현하세요 (선택적 사용):
+- 흥분·놀람: <prosody rate='fast' pitch='+15%'>텍스트</prosody>
+- 핵심 용어 강조: <emphasis level='strong'>단어</emphasis>
+- 생각하는 멈춤: <break time='500ms'/>
+- 천천히 설명: <prosody rate='slow'>텍스트</prosody>
+- 질문 어조: <prosody pitch='+8%'>텍스트</prosody>
+⚠️ SSML 속성값에는 반드시 작은따옴표(')를 사용하세요. 태그 없는 일반 텍스트도 OK. 한 대사에 태그 1-2개만."""
+
 _JSON_FORMAT = """반드시 아래 형식의 JSON 배열만 반환하세요. 다른 텍스트 없이:
 [
-  {"speaker": "소희", "text": "대사 내용", "pause_after_ms": 400},
-  {"speaker": "도현", "text": "대사 내용", "pause_after_ms": 300}
+  {"speaker": "소희", "text": "대사 내용 (SSML 태그 포함 가능)", "pause_after_ms": 400},
+  {"speaker": "도현", "text": "<prosody rate=\"fast\" pitch=\"+15%\">오 이거 진짜요?</prosody>", "pause_after_ms": 300}
 ]
 pause_after_ms: 다음 대사 전 침묵 ms. 보통 300-500, 섹션 끝은 800-1000."""
 
@@ -135,6 +144,8 @@ class ScriptWriter:
 
 {_CHARACTER_BRIEF}
 
+{_SSML_GUIDE}
+
 {_JSON_FORMAT}"""
         return await self._call_and_parse(prompt, context="intro")
 
@@ -155,6 +166,8 @@ class ScriptWriter:
 
 {_CHARACTER_BRIEF}
 
+{_SSML_GUIDE}
+
 {_JSON_FORMAT}"""
         return await self._call_and_parse(prompt, context=section_name)
 
@@ -173,6 +186,8 @@ class ScriptWriter:
 
 {_CHARACTER_BRIEF}
 
+{_SSML_GUIDE}
+
 {_JSON_FORMAT}"""
         return await self._call_and_parse(prompt, context="outro")
 
@@ -186,6 +201,17 @@ class ScriptWriter:
                 f"   요약: {str(summary)[:300]}"
             )
         return "\n\n".join(lines)
+
+    @staticmethod
+    def _fix_ssml_quotes(raw: str) -> str:
+        """Convert double-quoted SSML attributes to single quotes to prevent JSON parse errors.
+
+        e.g. <prosody rate="fast" pitch="+15%"> → <prosody rate='fast' pitch='+15%'>
+        """
+        def _fix_tag(m: re.Match) -> str:
+            return "<" + re.sub(r'="([^"]*)"', r"='\1'", m.group(1)) + ">"
+
+        return re.sub(r"<([^<>]+)>", _fix_tag, raw)
 
     async def _call_and_parse(self, prompt: str, context: str) -> list[DialogueTurn]:
         system = "당신은 한국어 팟캐스트 스크립트 작가입니다. 반드시 유효한 JSON 배열만 반환하세요."
@@ -203,7 +229,9 @@ class ScriptWriter:
                 logger.error("script_no_json_array", context=context, preview=text[:200])
                 return []
 
-            turns_data = json.loads(text[start:end])
+            # Fix SSML attribute double quotes before JSON parsing
+            raw_json = self._fix_ssml_quotes(text[start:end])
+            turns_data = json.loads(raw_json)
             return [
                 DialogueTurn(
                     speaker=t.get("speaker", HOST_A),
