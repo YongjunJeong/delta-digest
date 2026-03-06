@@ -1,0 +1,68 @@
+rss:
+  - name: "Databricks Blog"
+    url: "https://www.databricks.com/feed"
+    category: "databricks"
+    priority: "high"
+
+  - name: "The Sequence"
+    url: "https://thesequence.substack.com/feed"
+    category: "ai"
+    priority: "medium"
+
+  - name: "MIT News - AI"
+    url: "https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml"
+    category: "ai"
+    priority: "medium"
+
+  - name: "Google AI Blog"
+    url: "https://blog.research.google/feeds/posts/default"
+    category: "ai"
+    priority: "high"
+    filter_keywords:
+      - "llm"
+      - "gemini"
+      - "language model"
+      - "ai"
+
+hn:
+  - name: "Hacker News"
+    category: "tech"
+    priority: "medium"
+    filter_keywords:
+      - "llm"
+      - "databricks"
+      - "spark"
+      - "delta lake"
+      - "ai"
+      - "machine learning"
+      - "vector database"
+      - "rag"
+      - "fine-tuning"
+      - "open source"
+
+arxiv:
+  - name: "ArXiv AI/ML"
+    query: "cat:cs.AI OR cat:cs.LG OR cat:cs.CL"
+    max_results: 30
+    category: "research"
+    priority: "medium"
+    filter_keywords:
+      - "large language model"
+      - "retrieval"
+      - "fine-tuning"
+      - "agent"
+      - "reasoning"
+      - "multimodal"
+
+github:
+  - name: "GitHub Trending"
+    category: "open_source"
+    priority: "medium"
+    language: ""           # empty = all languages
+    filter_keywords:
+      - "llm"
+      - "ai"
+      - "machine learning"
+      - "vector"
+      - "rag"
+      - "agent"
