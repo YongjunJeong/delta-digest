@@ -123,3 +123,41 @@ def test_write_pdfs_calls_weasyprint_twice(tmp_path, sample_articles):
 
     assert mock_html_cls.call_count == 2
     assert mock_instance.write_pdf.call_count == 2
+
+
+# ── write_glossary_pdf ───────────────────────────────────────────────────────
+
+def test_write_glossary_pdf_returns_correct_path(tmp_path):
+    """write_glossary_pdf returns path with correct filename."""
+    from src.agents.glossary_agent import GlossaryTerm
+    from src.output.pdf_writer import write_glossary_pdf
+
+    new_terms = [GlossaryTerm("RAG", "정의.", "2026-03-07", is_new=True)]
+    all_terms = [GlossaryTerm("RAG", "정의.", "2026-03-07")]
+
+    mock_html_cls = MagicMock()
+    mock_html_cls.return_value.write_pdf = MagicMock()
+
+    with patch("src.output.pdf_writer.HTML", mock_html_cls):
+        path = write_glossary_pdf(new_terms, all_terms, date(2026, 3, 7), output_dir=tmp_path)
+
+    assert path.name == "2026-03-07-glossary.pdf"
+
+
+def test_write_glossary_pdf_calls_weasyprint_once(tmp_path):
+    """write_glossary_pdf calls weasyprint exactly once."""
+    from src.agents.glossary_agent import GlossaryTerm
+    from src.output.pdf_writer import write_glossary_pdf
+
+    new_terms = [GlossaryTerm("LoRA", "정의.", "2026-03-07", is_new=True)]
+    all_terms = [GlossaryTerm("LoRA", "정의.", "2026-03-07")]
+
+    mock_html_cls = MagicMock()
+    mock_instance = MagicMock()
+    mock_html_cls.return_value = mock_instance
+
+    with patch("src.output.pdf_writer.HTML", mock_html_cls):
+        write_glossary_pdf(new_terms, all_terms, date(2026, 3, 7), output_dir=tmp_path)
+
+    assert mock_html_cls.call_count == 1
+    assert mock_instance.write_pdf.call_count == 1

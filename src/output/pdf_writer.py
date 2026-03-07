@@ -139,3 +139,34 @@ def write_pdfs(
     paths.append(db_path)
 
     return paths
+
+
+def write_glossary_pdf(
+    new_terms: list,
+    all_terms: list,
+    ingestion_date: date | None = None,
+    output_dir: Path | None = None,
+) -> Path:
+    """Render and write glossary PDF. Returns output path."""
+    if ingestion_date is None:
+        ingestion_date = date.today()
+    if output_dir is None:
+        output_dir = settings.digests_path
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    date_str = ingestion_date.strftime("%Y-%m-%d")
+
+    env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
+    template = env.get_template("glossary.html.j2")
+    html = template.render(
+        date=date_str,
+        new_terms=new_terms,
+        all_terms=all_terms,
+        total_count=len(all_terms),
+        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M KST"),
+    )
+
+    output_path = output_dir / f"{date_str}-glossary.pdf"
+    HTML(string=html).write_pdf(str(output_path))
+    logger.info("glossary_pdf_written", path=str(output_path), new_terms=len(new_terms))
+    return output_path
