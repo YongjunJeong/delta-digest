@@ -370,17 +370,25 @@ delta-digest/
 
 ---
 
-## Databricks 연관성
+## 왜 이 기술 스택인가
 
-이 프로젝트를 Databricks SE 인터뷰에서 어떻게 활용하는지:
+단순히 "작동하는" 파이프라인을 만드는 방법은 많다. 이 프로젝트에서 각 기술을 선택한 데는 구체적인 이유가 있다.
 
-| 기술 | 구현 내용 | Databricks 연관 |
-|------|-----------|-----------------|
-| Delta Lake | Medallion Architecture, MERGE upsert, Time Travel, Partitioning | Databricks 핵심 스토리지 레이어 |
-| PySpark | DataFrame API, Window Functions, UDF, local mode | Databricks 런타임 동일 엔진 |
-| LLM 추상화 | LLMClient ABC → 1줄 교체로 Databricks Foundation Model API 연동 가능 | Databricks AI/BI 기능 활용 |
-| 비용 최적화 | 태스크별 모델 라우팅 (로컬 vs 클라우드) | Databricks 리소스 최적화 사고와 동일 |
-| 구조화 로깅 | structlog JSON 로그 | Databricks 모니터링/관찰성 패턴 |
+**Delta Lake — 파일 시스템 대신 트랜잭셔널 스토리지**
+
+매일 동일한 URL의 기사가 재수집된다. 단순 파일 저장이라면 중복이 쌓이거나 매번 전체를 덮어써야 한다. Delta Lake의 MERGE upsert는 "URL이 같으면 무시, 새 것만 삽입"을 원자적으로 처리한다. Partitioning으로 날짜별 조회를 빠르게 하고, Time Travel로 파이프라인 버그 발생 시 이전 상태로 롤백할 수 있다.
+
+**Medallion Architecture — 재처리 가능한 파이프라인**
+
+Bronze(원본 불변) → Silver(정제) → Gold(AI 강화) 레이어 분리는 "Silver 로직을 고쳤을 때 Bronze를 다시 수집하지 않아도 된다"는 실용적 이점에서 나온 선택이다. Silver는 `replaceWhere`로 날짜 단위 멱등 재처리를 지원한다.
+
+**LLM 추상화 레이어 — 벤더 락인 방지**
+
+Ollama(로컬)와 Gemini(클라우드)를 동일한 `LLMClient` 인터페이스로 추상화했다. 스코어링처럼 대량 반복 작업은 비용 $0인 로컬 모델로, 한국어 품질이 중요한 요약은 클라우드 API로 라우팅한다. 향후 Databricks Foundation Model API나 다른 제공자로 교체해도 클라이언트 구현체 하나만 바꾸면 된다.
+
+**Ollama 폴백 설계 — 부분 장애 허용**
+
+새벽 cron 실행 중 Ollama가 다운되면 파이프라인 전체가 멈추면 안 된다. 헬스체크 실패 시 mock 스코어로 자동 폴백해 요약과 PDF 생성은 계속 진행된다.
 
 ---
 
