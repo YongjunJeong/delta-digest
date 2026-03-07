@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Delta Digest {{ date }} — {{ title_suffix }}</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      background: #ffffff;
+      color: #1a1a2e;
+      font-size: 9.5pt;
+      line-height: 1.5;
+    }
+    .header {
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 10px;
+      margin-bottom: 18px;
+    }
+    .header-top { display: flex; justify-content: space-between; align-items: baseline; }
+    .header h1 { font-size: 20pt; color: #1a1a2e; letter-spacing: -0.5px; }
+    .badge {
+      font-size: 9pt; font-weight: bold; color: #2563eb;
+      background: #eff6ff; padding: 3px 8px; border-radius: 12px;
+    }
+    .meta { font-size: 8.5pt; color: #6b7280; margin-top: 4px; }
+    .section-title {
+      font-size: 12pt; font-weight: bold;
+      padding: 5px 10px;
+      margin: 20px 0 10px;
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      color: #1e40af;
+    }
+    .section-title.db { border-left-color: #dc2626; background: #fff1f2; color: #991b1b; }
+    .section-title.other { border-left-color: #6b7280; background: #f9fafb; color: #374151; }
+    .article-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      break-inside: avoid;
+    }
+    .article-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+    .article-num {
+      flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px;
+      background: #2563eb; color: white;
+      border-radius: 50%; font-size: 7.5pt; font-weight: bold;
+      margin-top: 1px;
+    }
+    .article-num.db { background: #dc2626; }
+    .article-num.other { background: #6b7280; }
+    .article-title { font-size: 10.5pt; font-weight: bold; line-height: 1.35; }
+    .article-title a { color: #1d4ed8; text-decoration: none; }
+    .article-meta { font-size: 8pt; color: #6b7280; margin: 3px 0 6px 28px; }
+    .key-points { margin: 4px 0 4px 28px; }
+    .key-points li { font-size: 8.5pt; margin-bottom: 2px; color: #374151; }
+    .summary { font-size: 8.5pt; color: #4b5563; margin: 4px 0 0 28px; line-height: 1.55; }
+    .article-card.compact { padding: 7px 12px; }
+    .article-card.compact .article-title { font-size: 9.5pt; }
+    .one-line { font-size: 8.5pt; color: #6b7280; margin-left: 28px; }
+    .footer {
+      margin-top: 24px; padding-top: 8px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 7.5pt; color: #9ca3af; text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <h1>Delta Digest</h1>
+    <span class="badge">{{ title_suffix }}</span>
+  </div>
+  <div class="meta">{{ date }} · 수집 {{ total_collected }}건 선별</div>
+</div>
+
+{% if ai_news %}
+<div class="section-title">🔥 AI 핫뉴스 TOP {{ ai_news | length }}</div>
+{% for article in ai_news %}
+<div class="article-card">
+  <div class="article-header">
+    <span class="article-num">{{ loop.index }}</span>
+    <div class="article-title">
+      <a href="{{ article.url }}">{{ article.title }}</a>
+    </div>
+  </div>
+  <div class="article-meta">
+    {{ article.source_name }} · 점수 {{ "%.1f" | format(article.overall_score | float) }}
+  </div>
+  {% if article.key_points %}
+  <ul class="key-points">
+    {% for point in article.key_points %}<li>{{ point }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if article.full_summary %}
+  <div class="summary">{{ article.full_summary }}</div>
+  {% elif article.one_line_summary %}
+  <div class="summary">{{ article.one_line_summary }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if databricks_news %}
+<div class="section-title db">🔷 Databricks / Delta Lake TOP {{ databricks_news | length }}</div>
+{% for article in databricks_news %}
+<div class="article-card">
+  <div class="article-header">
+    <span class="article-num db">{{ loop.index }}</span>
+    <div class="article-title">
+      <a href="{{ article.url }}">{{ article.title }}</a>
+    </div>
+  </div>
+  <div class="article-meta">
+    {{ article.source_name }} · 관련도 {{ "%.1f" | format(article.relevance_score | float) }}
+  </div>
+  {% if article.key_points %}
+  <ul class="key-points">
+    {% for point in article.key_points %}<li>{{ point }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if article.full_summary %}
+  <div class="summary">{{ article.full_summary }}</div>
+  {% elif article.one_line_summary %}
+  <div class="summary">{{ article.one_line_summary }}</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if other_news %}
+<div class="section-title other">📌 기타 뉴스 TOP {{ other_news | length }}</div>
+{% for article in other_news %}
+<div class="article-card compact">
+  <div class="article-header">
+    <span class="article-num other">{{ loop.index }}</span>
+    <div class="article-title">
+      <a href="{{ article.url }}">{{ article.title }}</a>
+    </div>
+  </div>
+  <div class="one-line">{{ article.one_line_summary }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="footer">
+  Generated by delta-digest at {{ generated_at }}
+</div>
+
+</body>
+</html>
