@@ -16,7 +16,8 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 try:
     from weasyprint import HTML
-except ImportError:
+except (ImportError, OSError):
+    # OSError is raised on systems missing libgobject (e.g. macOS without GTK)
     HTML = None  # type: ignore
 
 

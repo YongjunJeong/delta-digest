@@ -17,6 +17,7 @@ dependencies = [
     "pyspark==3.5.4",
     "pyyaml>=6.0.3",
     "structlog>=25.5.0",
+    "weasyprint>=68.1",
 ]
 
 [dependency-groups]
