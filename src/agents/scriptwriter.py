@@ -22,6 +22,15 @@ _CHARACTER_BRIEF = f"""진행자 설명:
 - {HOST_B}: ML 연구 배경. 트렌드에 민감하고 직관적으로 반응한다. \
 "오 이거 진짜요?", "그게 왜 중요해요?" 같은 반응. 둘은 오래된 동료로 편안하게 대화한다."""
 
+_HUMANIZER_GUIDE = """자연스러운 대화 원칙 (AI 냄새 제거):
+- "획기적", "혁신적", "주목할 만한" 같은 홍보성 표현 대신 구체적 사실을 말한다.
+- "더불어", "아울러", "핵심적으로" 같은 AI 과용어를 쓰지 않는다.
+- "새로운 시대", "패러다임 변화" 같은 과도한 의미부여를 피한다.
+- 세 가지를 억지로 묶어 나열하지 않는다.
+- 마무리를 "앞으로가 기대됩니다", "미래가 밝네요" 같은 뻔한 긍정으로 끝내지 않는다.
+- 의견이 있으면 직접 표현한다. "이게 좀 이상하지 않아요?", "저는 솔직히 잘 모르겠는데요" 같은 반응이 자연스럽다.
+- 문장 길이를 변화시킨다. 짧게. 그 다음에 좀 더 길게 풀어서 설명하는 문장이 오면 리듬이 생긴다."""
+
 _SSML_GUIDE = """대사 text 필드에 SSML 태그로 감정/리듬을 표현하세요 (선택적 사용):
 - 흥분·놀람: <prosody rate='fast' pitch='+15%'>텍스트</prosody>
 - 핵심 용어 강조: <emphasis level='strong'>단어</emphasis>
@@ -144,6 +153,8 @@ class ScriptWriter:
 
 {_CHARACTER_BRIEF}
 
+{_HUMANIZER_GUIDE}
+
 {_SSML_GUIDE}
 
 {_JSON_FORMAT}"""
@@ -166,6 +177,8 @@ class ScriptWriter:
 
 {_CHARACTER_BRIEF}
 
+{_HUMANIZER_GUIDE}
+
 {_SSML_GUIDE}
 
 {_JSON_FORMAT}"""
@@ -185,6 +198,8 @@ class ScriptWriter:
 - 청취자 감사 인사, 다음 방송 예고
 
 {_CHARACTER_BRIEF}
+
+{_HUMANIZER_GUIDE}
 
 {_SSML_GUIDE}
 
