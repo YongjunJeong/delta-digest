@@ -158,3 +158,38 @@ def read_gold(
     if digest_only:
         df = df.filter(col("digest_included") == True)  # noqa: E712
     return df
+
+
+def count_new_since_yesterday(
+    spark: SparkSession,
+    gold_path: str,
+    ingestion_date: date,
+) -> int:
+    """Return count of digest articles that did not exist in the previous Gold version.
+
+    Uses Delta time travel (VERSION AS OF) to compare today's digest URLs
+    against the previous write. Returns full digest count if no prior version exists.
+    """
+    from delta.tables import DeltaTable
+
+    today_df = read_gold(spark, gold_path, ingestion_date, digest_only=True)
+    today_urls = {r.url for r in today_df.select("url").collect()}
+
+    try:
+        dt = DeltaTable.forPath(spark, gold_path)
+        history = dt.history(2).collect()
+        if len(history) < 2:
+            return len(today_urls)
+
+        yesterday_version = history[1].version
+        yesterday_df = (
+            spark.read.format("delta")
+            .option("versionAsOf", yesterday_version)
+            .load(gold_path)
+            .filter(col("digest_included") == True)  # noqa: E712
+        )
+        yesterday_urls = {r.url for r in yesterday_df.select("url").collect()}
+        return len(today_urls - yesterday_urls)
+    except Exception as e:
+        logger.warning("time_travel_failed", error=str(e))
+        return len(today_urls)
