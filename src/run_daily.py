@@ -83,6 +83,35 @@ async def run_pipeline(
 
     pdf_paths = write_pdfs(digest_articles, total_collected, ingestion_date)
 
+    # ── Step 6.5: Glossary ───────────────────────────────────────────────────────
+    logger.info("step6_5_glossary")
+    if not use_mock_scores:
+        from src.agents.glossary_agent import GlossaryAgent
+        from src.agents.router import LLMRouter
+        from src.output.pdf_writer import write_glossary_pdf
+
+        glossary_router = LLMRouter()
+        glossary_health = await glossary_router.check_all()
+        if glossary_health.get("gemini"):
+            gemini_client = glossary_router.get_client("summarization")
+            top_articles = sorted(
+                digest_articles, key=lambda x: -x.get("overall_score", 0)
+            )[:20]
+            glossary_agent = GlossaryAgent(gemini_client, settings.glossary_path)
+            new_terms = await glossary_agent.update(top_articles, ingestion_date)
+
+            if new_terms:
+                glossary_path = write_glossary_pdf(
+                    new_terms, glossary_agent.all_terms, ingestion_date
+                )
+                print(f"\n📚 Glossary saved: {glossary_path} ({len(new_terms)} new terms)")
+            else:
+                logger.info("glossary_pdf_skipped", reason="no_new_terms")
+        else:
+            logger.info("glossary_skipped", reason="gemini_unavailable")
+    else:
+        logger.info("glossary_skipped", reason="mock_mode")
+
     # ── Step 7: Podcast ──────────────────────────────────────────────────────
     logger.info("step7_podcast")
     if use_mock_scores or skip_podcast:
