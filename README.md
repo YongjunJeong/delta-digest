@@ -178,7 +178,6 @@ Ollama 미실행 상태에서도 파이프라인이 중단되지 않습니다:
 | Google AI Blog | RSS | AI 연구 |
 | NVIDIA Blog | RSS | AI/GPU (키워드 필터링) |
 | The Sequence | RSS | AI/ML |
-| MIT News - AI | RSS | AI 연구 |
 | Hacker News | Firebase API | 기술 트렌드 |
 | ArXiv (cs.AI, cs.LG, cs.CL) | Atom API | 논문 |
 | GitHub Trending (LLM 관련) | Search API | 오픈소스 |

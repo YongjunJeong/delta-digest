@@ -22,7 +22,10 @@ class RSSCollector(BaseCollector):
         feed = feedparser.parse(response.text)
         articles = []
 
-        for entry in feed.entries:
+        max_items = self.config.get("max_items")
+        entries = feed.entries[:max_items] if max_items else feed.entries
+
+        for entry in entries:
             article = RawArticle(
                 source_name=self.name,
                 source_type="rss",

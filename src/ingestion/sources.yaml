@@ -9,11 +9,6 @@ rss:
     category: "ai"
     priority: "medium"
 
-  - name: "MIT News - AI"
-    url: "https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml"
-    category: "ai"
-    priority: "medium"
-
   - name: "Google AI Blog"
     url: "https://blog.research.google/feeds/posts/default"
     category: "ai"
@@ -28,6 +23,7 @@ rss:
     url: "https://openai.com/news/rss.xml"
     category: "ai"
     priority: "high"
+    max_items: 20
 
   - name: "NVIDIA Blog"
     url: "https://blogs.nvidia.com/feed/"
