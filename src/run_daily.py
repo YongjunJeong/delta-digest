@@ -8,7 +8,7 @@ import structlog
 from src.common.config import settings
 from src.common.logging import setup_logging, get_logger
 from src.ingestion.run_all import run_all_collectors
-from src.output.markdown_writer import write_digest
+from src.output.pdf_writer import write_pdfs
 from src.pipeline.bronze import write_bronze
 from src.pipeline.gold import read_gold, silver_to_gold
 from src.pipeline.silver import bronze_to_silver
@@ -71,7 +71,7 @@ async def run_pipeline(
         ingestion_date,
         scored,
         summaries,
-        top_n=20,
+        top_n=40,
     )
 
     # ── Step 6: Digest ───────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ async def run_pipeline(
     digest_articles = [row.asDict() for row in gold_df.collect()]
     stop_spark()
 
-    output_path = write_digest(digest_articles, total_collected, ingestion_date)
+    pdf_paths = write_pdfs(digest_articles, total_collected, ingestion_date)
 
     # ── Step 7: Podcast ──────────────────────────────────────────────────────
     logger.info("step7_podcast")
@@ -110,9 +110,9 @@ async def run_pipeline(
         collected=total_collected,
         silver=silver_count,
         digest_articles=len(digest_articles),
-        output=str(output_path),
     )
-    print(f"\n✅ Digest saved: {output_path}")
+    for p in pdf_paths:
+        print(f"\n📄 PDF saved: {p}")
 
 
 async def _run_ai_pipeline(
@@ -128,7 +128,7 @@ async def _run_ai_pipeline(
     # Scoring: Ollama preferred, mock fallback
     if health.get("ollama"):
         ollama = router.get_client("scoring")
-        scored = await score_batch(ollama, silver_articles, top_n=20)
+        scored = await score_batch(ollama, silver_articles, top_n=40)
     else:
         logger.warning("ollama_unavailable_using_mock_scores")
         scored, _ = _mock_scores(silver_articles)
@@ -136,7 +136,7 @@ async def _run_ai_pipeline(
     # Summarization: Gemini (independent of Ollama)
     summaries: dict = {}
     if health.get("gemini"):
-        top_urls = {s["url"] for s in sorted(scored, key=lambda x: -x["overall_score"])[:20]}
+        top_urls = {s["url"] for s in sorted(scored, key=lambda x: -x["overall_score"])[:40]}
         top_articles = [a for a in silver_articles if a["url"] in top_urls]
         gemini = router.get_client("summarization")
         summaries = await summarize_batch(gemini, top_articles)
