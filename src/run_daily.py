@@ -172,9 +172,25 @@ async def _run_ai_pipeline(
         scored, _ = _mock_scores(silver_articles)
 
     # Summarization: Gemini (independent of Ollama)
+    # Use same quota logic as Gold: top 10 Databricks + top 20 AI + top 10 other
     summaries: dict = {}
     if health.get("gemini"):
-        top_urls = {s["url"] for s in sorted(scored, key=lambda x: -x["overall_score"])[:40]}
+        silver_by_url = {a["url"]: a for a in silver_articles}
+        db_scored = sorted(
+            [s for s in scored if silver_by_url.get(s["url"], {}).get("is_databricks_related")],
+            key=lambda x: -x["relevance_score"],
+        )[:10]
+        db_urls = {s["url"] for s in db_scored}
+        ai_scored = sorted(
+            [s for s in scored if s["url"] not in db_urls],
+            key=lambda x: -x["overall_score"],
+        )[:20]
+        ai_urls = {s["url"] for s in ai_scored}
+        other_scored = sorted(
+            [s for s in scored if s["url"] not in db_urls and s["url"] not in ai_urls],
+            key=lambda x: -x["overall_score"],
+        )[:10]
+        top_urls = db_urls | ai_urls | {s["url"] for s in other_scored}
         top_articles = [a for a in silver_articles if a["url"] in top_urls]
         gemini = router.get_client("summarization")
         summaries = await summarize_batch(gemini, top_articles)
