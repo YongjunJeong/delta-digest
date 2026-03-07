@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
 
+    # Slack
+    slack_bot_token: str = ""
+    slack_channel_id: str = ""
+
     # Paths
     data_dir: Path = Path("./data")
     output_dir: Path = Path("./outputs")
