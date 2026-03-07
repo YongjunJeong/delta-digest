@@ -2,6 +2,7 @@
 import asyncio
 import sys
 from datetime import date
+from pathlib import Path
 
 import structlog
 
@@ -26,122 +27,163 @@ async def run_pipeline(
     if ingestion_date is None:
         ingestion_date = date.today()
 
-    logger.info("pipeline_start", date=str(ingestion_date))
+    from src.output.slack_notifier import SlackNotifier
+    notifier: SlackNotifier | None = None
+    if settings.slack_bot_token and settings.slack_channel_id:
+        notifier = SlackNotifier(settings.slack_bot_token, settings.slack_channel_id)
+    current_step = "init"
+    new_since_yesterday = 0
 
-    # ── Step 1: Collect ──────────────────────────────────────────────────────
-    logger.info("step1_collect")
-    articles = await run_all_collectors()
-    total_collected = len(articles)
-    logger.info("collect_done", count=total_collected)
+    try:
+        logger.info("pipeline_start", date=str(ingestion_date))
 
-    # ── Step 2: Bronze ───────────────────────────────────────────────────────
-    logger.info("step2_bronze")
-    spark = get_spark()
-    write_bronze(spark, articles, settings.bronze_path, ingestion_date)
+        # ── Step 1: Collect ──────────────────────────────────────────────────────
+        logger.info("step1_collect")
+        current_step = "step1_collect"
+        articles = await run_all_collectors()
+        total_collected = len(articles)
+        logger.info("collect_done", count=total_collected)
 
-    # ── Step 3: Silver ───────────────────────────────────────────────────────
-    logger.info("step3_silver")
-    silver_count = bronze_to_silver(
-        spark, settings.bronze_path, settings.silver_path, ingestion_date
-    )
+        # ── Step 2: Bronze ───────────────────────────────────────────────────────
+        logger.info("step2_bronze")
+        current_step = "step2_bronze"
+        spark = get_spark()
+        write_bronze(spark, articles, settings.bronze_path, ingestion_date)
 
-    # ── Step 4: AI Scoring + Summarization ──────────────────────────────────
-    # Memory management: stop Spark before loading Ollama (24GB ARM)
-    logger.info("step4_ai_scoring", silver_articles=silver_count)
-    stop_spark()
+        # ── Step 3: Silver ───────────────────────────────────────────────────────
+        logger.info("step3_silver")
+        current_step = "step3_silver"
+        silver_count = bronze_to_silver(
+            spark, settings.bronze_path, settings.silver_path, ingestion_date
+        )
 
-    from src.pipeline.silver import read_silver
-    spark2 = get_spark()
-    silver_df = read_silver(spark2, settings.silver_path, ingestion_date)
-    silver_articles = [row.asDict() for row in silver_df.collect()]
-    stop_spark()
+        # ── Step 4: AI Scoring + Summarization ──────────────────────────────────
+        # Memory management: stop Spark before loading Ollama (24GB ARM)
+        logger.info("step4_ai_scoring", silver_articles=silver_count)
+        current_step = "step4_ai_scoring"
+        stop_spark()
 
-    if use_mock_scores:
-        scored, summaries = _mock_scores(silver_articles)
-    else:
-        scored, summaries = await _run_ai_pipeline(silver_articles)
+        from src.pipeline.silver import read_silver
+        spark2 = get_spark()
+        silver_df = read_silver(spark2, settings.silver_path, ingestion_date)
+        silver_articles = [row.asDict() for row in silver_df.collect()]
+        stop_spark()
 
-    # ── Step 5: Gold ─────────────────────────────────────────────────────────
-    logger.info("step5_gold")
-    spark3 = get_spark()
-    silver_to_gold(
-        spark3,
-        settings.silver_path,
-        settings.gold_path,
-        ingestion_date,
-        scored,
-        summaries,
-        top_n=40,
-    )
+        if use_mock_scores:
+            scored, summaries = _mock_scores(silver_articles)
+        else:
+            scored, summaries = await _run_ai_pipeline(silver_articles)
 
-    # ── Step 6: Digest ───────────────────────────────────────────────────────
-    logger.info("step6_digest")
-    from src.pipeline.gold import read_gold
-    gold_df = read_gold(spark3, settings.gold_path, ingestion_date, digest_only=True)
-    digest_articles = [row.asDict() for row in gold_df.collect()]
-    stop_spark()
+        # ── Step 5: Gold ─────────────────────────────────────────────────────────
+        logger.info("step5_gold")
+        current_step = "step5_gold"
+        spark3 = get_spark()
+        silver_to_gold(
+            spark3,
+            settings.silver_path,
+            settings.gold_path,
+            ingestion_date,
+            scored,
+            summaries,
+            top_n=40,
+        )
 
-    pdf_paths = write_pdfs(digest_articles, total_collected, ingestion_date)
+        # ── Step 6: Digest ───────────────────────────────────────────────────────
+        logger.info("step6_digest")
+        current_step = "step6_digest"
+        gold_df = read_gold(spark3, settings.gold_path, ingestion_date, digest_only=True)
+        digest_articles = [row.asDict() for row in gold_df.collect()]
 
-    # ── Step 6.5: Glossary ───────────────────────────────────────────────────────
-    logger.info("step6_5_glossary")
-    if not use_mock_scores:
-        from src.agents.glossary_agent import GlossaryAgent
-        from src.agents.router import LLMRouter
-        from src.output.pdf_writer import write_glossary_pdf
+        from src.pipeline.gold import count_new_since_yesterday
+        new_since_yesterday = count_new_since_yesterday(spark3, settings.gold_path, ingestion_date)
+        logger.info("new_since_yesterday", count=new_since_yesterday)
+        stop_spark()
 
-        glossary_router = LLMRouter()
-        glossary_health = await glossary_router.check_all()
-        if glossary_health.get("gemini"):
-            gemini_client = glossary_router.get_client("summarization")
-            top_articles = sorted(
-                digest_articles, key=lambda x: -x.get("overall_score", 0)
-            )[:20]
-            glossary_agent = GlossaryAgent(gemini_client, settings.glossary_path)
-            new_terms = await glossary_agent.update(top_articles, ingestion_date)
+        pdf_paths = write_pdfs(digest_articles, total_collected, ingestion_date)
 
-            if new_terms:
-                glossary_path = write_glossary_pdf(
-                    new_terms, glossary_agent.all_terms, ingestion_date
-                )
-                print(f"\n📚 Glossary saved: {glossary_path} ({len(new_terms)} new terms)")
+        if notifier:
+            db_count = sum(1 for a in digest_articles if a.get("is_databricks_related"))
+            ai_count = len(digest_articles) - db_count
+            notifier.notify_success(
+                ingestion_date=str(ingestion_date),
+                stats={
+                    "collected": total_collected,
+                    "digest": len(digest_articles),
+                    "db": db_count,
+                    "ai": ai_count,
+                    "other": 0,
+                },
+                pdf_paths=[Path(p) for p in pdf_paths],
+                new_since_yesterday=new_since_yesterday,
+            )
+
+        # ── Step 6.5: Glossary ───────────────────────────────────────────────────────
+        logger.info("step6_5_glossary")
+        current_step = "step6_5_glossary"
+        if not use_mock_scores:
+            from src.agents.glossary_agent import GlossaryAgent
+            from src.agents.router import LLMRouter
+            from src.output.pdf_writer import write_glossary_pdf
+
+            glossary_router = LLMRouter()
+            glossary_health = await glossary_router.check_all()
+            if glossary_health.get("gemini"):
+                gemini_client = glossary_router.get_client("summarization")
+                top_articles = sorted(
+                    digest_articles, key=lambda x: -x.get("overall_score", 0)
+                )[:20]
+                glossary_agent = GlossaryAgent(gemini_client, settings.glossary_path)
+                new_terms = await glossary_agent.update(top_articles, ingestion_date)
+
+                if new_terms:
+                    glossary_path = write_glossary_pdf(
+                        new_terms, glossary_agent.all_terms, ingestion_date
+                    )
+                    print(f"\n📚 Glossary saved: {glossary_path} ({len(new_terms)} new terms)")
+                else:
+                    logger.info("glossary_pdf_skipped", reason="no_new_terms")
             else:
-                logger.info("glossary_pdf_skipped", reason="no_new_terms")
+                logger.info("glossary_skipped", reason="gemini_unavailable")
         else:
-            logger.info("glossary_skipped", reason="gemini_unavailable")
-    else:
-        logger.info("glossary_skipped", reason="mock_mode")
+            logger.info("glossary_skipped", reason="mock_mode")
 
-    # ── Step 7: Podcast ──────────────────────────────────────────────────────
-    logger.info("step7_podcast")
-    if use_mock_scores or skip_podcast:
-        logger.info("podcast_skipped", reason="mock_mode_or_skip_flag")
-    else:
-        from src.agents.scriptwriter import ScriptWriter
-        from src.output.podcast_producer import PodcastProducer
-        from src.agents.router import LLMRouter
-
-        router_for_podcast = LLMRouter()
-        gemini = router_for_podcast.get_client("scriptwriting")
-        writer = ScriptWriter(gemini)
-        script = await writer.generate(digest_articles, ingestion_date)
-
-        if script.turns:
-            producer = PodcastProducer()
-            podcast_path = await producer.produce(script, ingestion_date)
-            print(f"\n🎙️  Podcast saved: {podcast_path}  ({script.estimated_minutes} min)")
+        # ── Step 7: Podcast ──────────────────────────────────────────────────────
+        logger.info("step7_podcast")
+        current_step = "step7_podcast"
+        if use_mock_scores or skip_podcast:
+            logger.info("podcast_skipped", reason="mock_mode_or_skip_flag")
         else:
-            logger.warning("podcast_empty_script")
+            from src.agents.scriptwriter import ScriptWriter
+            from src.output.podcast_producer import PodcastProducer
+            from src.agents.router import LLMRouter
 
-    logger.info(
-        "pipeline_complete",
-        date=str(ingestion_date),
-        collected=total_collected,
-        silver=silver_count,
-        digest_articles=len(digest_articles),
-    )
-    for p in pdf_paths:
-        print(f"\n📄 PDF saved: {p}")
+            router_for_podcast = LLMRouter()
+            gemini = router_for_podcast.get_client("scriptwriting")
+            writer = ScriptWriter(gemini)
+            script = await writer.generate(digest_articles, ingestion_date)
+
+            if script.turns:
+                producer = PodcastProducer()
+                podcast_path = await producer.produce(script, ingestion_date)
+                print(f"\n🎙️  Podcast saved: {podcast_path}  ({script.estimated_minutes} min)")
+            else:
+                logger.warning("podcast_empty_script")
+
+        logger.info(
+            "pipeline_complete",
+            date=str(ingestion_date),
+            collected=total_collected,
+            silver=silver_count,
+            digest_articles=len(digest_articles),
+        )
+        for p in pdf_paths:
+            print(f"\n📄 PDF saved: {p}")
+
+    except Exception as e:
+        logger.error("pipeline_failed", step=current_step, error=str(e))
+        if notifier:
+            notifier.notify_failure(str(ingestion_date), current_step, str(e))
+        raise
 
 
 async def _run_ai_pipeline(
