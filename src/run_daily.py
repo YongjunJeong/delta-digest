@@ -140,6 +140,11 @@ async def run_pipeline(
                         new_terms, glossary_agent.all_terms, ingestion_date
                     )
                     print(f"\n📚 Glossary saved: {glossary_path} ({len(new_terms)} new terms)")
+                    if notifier:
+                        notifier.upload_file(
+                            Path(glossary_path),
+                            message=f":books: 용어집 {ingestion_date} ({len(new_terms)}개 신규)",
+                        )
                 else:
                     logger.info("glossary_pdf_skipped", reason="no_new_terms")
             else:

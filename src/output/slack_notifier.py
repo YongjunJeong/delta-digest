@@ -40,6 +40,19 @@ class SlackNotifier:
                     )
         logger.info("slack_success_sent", date=ingestion_date, pdfs=len(pdf_paths))
 
+    def upload_file(self, path: Path, message: str) -> None:
+        """Upload a single file with a message."""
+        if not Path(path).exists():
+            return
+        self._client.chat_postMessage(channel=self._channel, text=message)
+        with open(path, "rb") as f:
+            self._client.files_upload_v2(
+                channel=self._channel,
+                file=f,
+                filename=Path(path).name,
+            )
+        logger.info("slack_file_uploaded", filename=Path(path).name)
+
     def notify_failure(self, ingestion_date: str, step: str, error: str) -> None:
         """Post failure alert."""
         text = (
