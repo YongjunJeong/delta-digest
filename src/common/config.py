@@ -48,6 +48,10 @@ class Settings(BaseSettings):
         return self.output_dir / "podcasts"
 
     @property
+    def glossary_path(self) -> Path:
+        return self.output_dir / "glossary"
+
+    @property
     def logs_path(self) -> Path:
         return self.output_dir / "logs"
 
