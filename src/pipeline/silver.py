@@ -51,6 +51,21 @@ databricks_check_udf = udf(
 )
 
 
+def _is_english_or_korean(title: str | None, content: str | None) -> bool:
+    """Return True if article is in English or Korean. Unknown/short text → keep."""
+    try:
+        from langdetect import detect
+        text = f"{title or ''} {content or ''}"[:500]
+        if len(text.strip()) < 20:
+            return True
+        lang = detect(text)
+        return lang in ("en", "ko")
+    except Exception:
+        return True
+
+lang_filter_udf = udf(_is_english_or_korean, BooleanType())
+
+
 def bronze_to_silver(
     spark: SparkSession,
     bronze_path: str,
@@ -92,6 +107,7 @@ def bronze_to_silver(
             databricks_check_udf(col("title"), col("clean_content"), col("source_name")),
         )
         .filter(col("word_count") >= min_word_count)
+        .filter(lang_filter_udf(col("title"), col("clean_content")))
         .select(
             "url", "title", "clean_content", "word_count",
             "author", "source_name", "source_type",
