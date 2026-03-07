@@ -24,6 +24,24 @@ rss:
       - "language model"
       - "ai"
 
+  - name: "OpenAI Blog"
+    url: "https://openai.com/news/rss.xml"
+    category: "ai"
+    priority: "high"
+
+  - name: "NVIDIA Blog"
+    url: "https://blogs.nvidia.com/feed/"
+    category: "ai"
+    priority: "medium"
+    filter_keywords:
+      - "ai"
+      - "llm"
+      - "gpu"
+      - "inference"
+      - "data center"
+      - "generative"
+      - "foundation model"
+
 hn:
   - name: "Hacker News"
     category: "tech"
@@ -39,6 +57,11 @@ hn:
       - "rag"
       - "fine-tuning"
       - "open source"
+      - "agentic"
+      - "claude"
+      - "llama"
+      - "ai chip"
+      - "governance"
 
 arxiv:
   - name: "ArXiv AI/ML"
