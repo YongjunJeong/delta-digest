@@ -155,9 +155,18 @@ async def _run_ai_pipeline(
     health = await router.check_all()
 
     # Scoring: Ollama preferred, mock fallback
+    # Pre-filter to top candidates by source priority before scoring (ARM CPU is slow)
+    SCORE_LIMIT = 200
+    priority_order = {"high": 0, "medium": 1, "low": 2}
+    candidates = sorted(
+        silver_articles,
+        key=lambda x: priority_order.get(x.get("priority", "medium"), 1),
+    )[:SCORE_LIMIT]
+    logger.info("scoring_candidates", total_silver=len(silver_articles), candidates=len(candidates))
+
     if health.get("ollama"):
         ollama = router.get_client("scoring")
-        scored = await score_batch(ollama, silver_articles, top_n=40)
+        scored = await score_batch(ollama, candidates, top_n=40)
     else:
         logger.warning("ollama_unavailable_using_mock_scores")
         scored, _ = _mock_scores(silver_articles)
